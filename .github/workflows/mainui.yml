@@ -16,6 +16,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write
 
 concurrency:
   group: mainui
@@ -37,6 +38,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Upstream's workflows off
+        run: bash .github/mainui/ci.sh quiet-upstream-ci
       - name: Merge upstream
         if: github.event_name == 'schedule'
         run: bash .github/mainui/ci.sh sync
@@ -72,6 +75,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - uses: android-actions/setup-android@v4
       - name: Version
         run: bash .github/mainui/ci.sh version "${{ matrix.channel }}" "${{ needs.plan.outputs.tag }}"
       - name: Build
