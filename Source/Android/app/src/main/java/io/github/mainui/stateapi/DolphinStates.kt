@@ -18,6 +18,13 @@ object DolphinStates : MainUIStateApi.Emulator {
 
     override fun slotCount(): Int = 10
 
+    override fun pause(): Boolean {
+        NativeLibrary.PauseEmulation(false)
+        return true
+    }
+
+    override fun resume() = NativeLibrary.UnPauseEmulation()
+
     private fun stateDir() = File(NativeLibrary.GetUserDirectory(), "StateSaves")
 
     private fun resumeFile() = File(stateDir(), "${NativeLibrary.GetCurrentGameID()}.mainui.sav")
