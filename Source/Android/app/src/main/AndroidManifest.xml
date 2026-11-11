@@ -52,7 +52,7 @@
         <!-- MainUI State API (MainUI-Android fork): MainUI saves / loads states directly. -->
         <meta-data
             android:name="io.github.mainui.STATE_API"
-            android:value="1"/>
+            android:value="2"/>
         <receiver
             android:name="io.github.mainui.stateapi.MainUIStateApi$Receiver"
             android:exported="true"
