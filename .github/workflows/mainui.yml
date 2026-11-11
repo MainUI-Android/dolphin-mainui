@@ -1,0 +1,99 @@
+# MainUI-Android: builds Dolphin with the MainUI State API and publishes it for MainUI.
+# Nightly at 00:00 PST: merges upstream, builds "nightly" (prerelease); when upstream has a new
+# release, also builds it with the patch on top as a stable release, which MainUI installs.
+# Signing: organization secrets MAINUI_KEYSTORE (base64), MAINUI_KEYSTORE_PASSWORD,
+# MAINUI_KEY_ALIAS, MAINUI_KEY_PASSWORD. Helpers: .github/mainui/ci.sh.
+name: MainUI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['**.md']
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: mainui
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: dolphin-emu/dolphin
+  UPSTREAM_BRANCH: master
+  STABLE_TAG_REGEX: '^[0-9]{4}[a-z]?$'
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      channels: ${{ steps.plan.outputs.channels }}
+      tag: ${{ steps.stable.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream
+        if: github.event_name == 'schedule'
+        run: bash .github/mainui/ci.sh sync
+      - name: Upstream release to build
+        id: stable
+        if: github.event_name != 'push'
+        run: bash .github/mainui/ci.sh stable-tag
+      - name: Plan
+        id: plan
+        run: |
+          if [ -n "${{ steps.stable.outputs.tag }}" ]; then echo 'channels=["nightly","stable"]' >> "$GITHUB_OUTPUT"
+          else echo 'channels=["nightly"]' >> "$GITHUB_OUTPUT"; fi
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(needs.plan.outputs.channels) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+      - name: Stable source (upstream release + patch)
+        if: matrix.channel == 'stable'
+        run: bash .github/mainui/ci.sh prepare-stable "${{ needs.plan.outputs.tag }}"
+      - name: Submodules
+        run: git -c submodule."Externals/Qt".update=none -c submodule."Externals/FFmpeg-bin".update=none submodule update --init --recursive --depth 1 --jobs 8
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Version
+        run: bash .github/mainui/ci.sh version "${{ matrix.channel }}" "${{ needs.plan.outputs.tag }}"
+      - name: Build
+        working-directory: Source/Android
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+      - name: Sign
+        id: sign
+        env:
+          MAINUI_KEYSTORE: ${{ secrets.MAINUI_KEYSTORE }}
+          MAINUI_KEYSTORE_PASSWORD: ${{ secrets.MAINUI_KEYSTORE_PASSWORD }}
+          MAINUI_KEY_ALIAS: ${{ secrets.MAINUI_KEY_ALIAS }}
+          MAINUI_KEY_PASSWORD: ${{ secrets.MAINUI_KEY_PASSWORD }}
+        run: |
+          apk=$(ls Source/Android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$apk" dolphin-mainui-unsigned.apk
+          set +e; bash .github/mainui/ci.sh sign "$apk" dolphin-mainui.apk; rc=$?; set -e
+          if [ $rc = 0 ]; then echo "signed=true" >> "$GITHUB_OUTPUT"; elif [ $rc != 2 ]; then exit $rc; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dolphin-mainui-${{ matrix.channel }}
+          path: dolphin-mainui*.apk
+          retention-days: 14
+      - name: Release
+        if: steps.sign.outputs.signed == 'true'
+        run: bash .github/mainui/ci.sh release "${{ matrix.channel }}" "${{ needs.plan.outputs.tag }}" dolphin-mainui.apk

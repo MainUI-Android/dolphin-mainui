@@ -37,6 +37,8 @@ android {
 
     defaultConfig {
         applicationId = "org.dolphinemu.dolphinemu"
+        // MainUI-Android fork: its own package, beside the official app.
+        applicationIdSuffix = ".mainui"
         minSdk = 24
         targetSdk = 37
 
@@ -69,7 +71,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
 
-            resValue("string", "app_name_suffixed", "Dolphin Emulator")
+            resValue("string", "app_name_suffixed", "Dolphin (MainUI)")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -175,6 +177,8 @@ dependencies {
 }
 
 fun getGitVersion(): String {
+    // MainUI-Android CI names its builds itself.
+    System.getenv("MAINUI_VERSION_NAME")?.takeIf { it.isNotBlank() }?.let { return it }
     try {
         return ProcessBuilder("git", "describe", "--always", "--long")
             .directory(project.rootDir)
@@ -191,6 +195,8 @@ fun getGitVersion(): String {
 }
 
 fun getBuildVersionCode(): Int {
+    // MainUI-Android CI: one rising number for nightly and stable builds alike.
+    System.getenv("MAINUI_VERSION_CODE")?.toIntOrNull()?.let { return it }
     try {
         val commitCount = Integer.valueOf(
             ProcessBuilder("git", "rev-list", "--first-parent", "--count", "HEAD")

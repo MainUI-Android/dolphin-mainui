@@ -234,6 +234,9 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
         if (NativeLibrary.IsGameMetadataValid())
             title = NativeLibrary.GetCurrentTitleDescription()
 
+        // MainUI State API (MainUI-Android fork): this game takes MainUI's save / load commands.
+        io.github.mainui.stateapi.MainUIStateApi.attach(io.github.mainui.stateapi.DolphinStates)
+
         if (skylanderSlots.isEmpty()) {
             for (i in 0..7) {
                 skylanderSlots.add(SkylanderSlot(getString(R.string.skylander_slot, i + 1), i))
@@ -354,6 +357,7 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
     }
 
     override fun onDestroy() {
+        if (isFinishing) io.github.mainui.stateapi.MainUIStateApi.detach(io.github.mainui.stateapi.DolphinStates)
         super.onDestroy()
         settings.close()
     }

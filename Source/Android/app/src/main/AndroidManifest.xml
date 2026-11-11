@@ -49,6 +49,18 @@
         <meta-data
             android:name="android.max_aspect"
             android:value="2.1"/>
+        <!-- MainUI State API (MainUI-Android fork): MainUI saves / loads states directly. -->
+        <meta-data
+            android:name="io.github.mainui.STATE_API"
+            android:value="1"/>
+        <receiver
+            android:name="io.github.mainui.stateapi.MainUIStateApi$Receiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="io.github.mainui.stateapi.COMMAND"/>
+            </intent-filter>
+        </receiver>
         <profileable
             android:shell="true"
             tools:targetApi="29" />
