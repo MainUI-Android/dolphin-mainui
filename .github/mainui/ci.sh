@@ -54,6 +54,16 @@ case "$cmd" in
     echo "changed=true" >> "$OUT"
     ;;
 
+  quiet-upstream-ci)
+    # Upstream's own workflows build and publish upstream's way, with secrets this fork doesn't
+    # have: they are switched off here (new ones too, the next night). Only MainUI's runs.
+    gh workflow list --all --json id,path,state --jq '.[] | select(.state == "active") | "\(.id) \(.path)"' 2>/dev/null \
+      | while read -r id path; do
+          [ "$path" = ".github/workflows/mainui.yml" ] && continue
+          if gh workflow disable "$id" >/dev/null 2>&1; then say "Disabled upstream workflow $path"; fi
+        done || true
+    ;;
+
   stable-tag)
     # Upstream's latest release (GitHub release, else the newest tag matching STABLE_TAG_REGEX),
     # when we have no "<tag>-mainui" release of it yet; empty otherwise.
@@ -136,7 +146,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "usage: ci.sh sync | stable-tag | prepare-stable <tag> | version <channel> [tag] | sign <in> <out> | release <channel> <tag> <files...>" >&2
+    echo "usage: ci.sh sync | quiet-upstream-ci | stable-tag | prepare-stable <tag> | version <channel> [tag] | sign <in> <out> | release <channel> <tag> <files...>" >&2
     exit 64
     ;;
 esac
