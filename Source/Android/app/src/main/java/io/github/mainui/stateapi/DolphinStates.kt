@@ -18,12 +18,23 @@ object DolphinStates : MainUIStateApi.Emulator {
 
     override fun slotCount(): Int = 10
 
+    /** MainUI's pause took effect (not one the user or Dolphin's menu holds). */
+    @Volatile private var pausedByMainUi = false
+
     override fun pause(): Boolean {
+        if (!NativeLibrary.IsRunningAndUnpaused()) return true
         NativeLibrary.PauseEmulation(false)
+        // (Dolphin may refuse: RetroAchievements hardcore's limit on pausing.)
+        if (NativeLibrary.IsRunningAndUnpaused()) return false
+        pausedByMainUi = true
         return true
     }
 
-    override fun resume() = NativeLibrary.UnPauseEmulation()
+    override fun resume() {
+        if (!pausedByMainUi) return
+        pausedByMainUi = false
+        NativeLibrary.UnPauseEmulation()
+    }
 
     private fun stateDir() = File(NativeLibrary.GetUserDirectory(), "StateSaves")
 
