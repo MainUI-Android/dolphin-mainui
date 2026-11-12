@@ -42,7 +42,10 @@ object DolphinStates : MainUIStateApi.Emulator {
         return true
     }
 
-    override fun restoreOwnPause() = NativeLibrary.PauseEmulation(false)
+    override fun restoreOwnPause() {
+        if (NativeLibrary.IsRunningAndUnpaused()) NativeLibrary.PauseEmulation(false)
+        pausedByMainUi = false // (the user's pause again, even if MainUI paused meanwhile)
+    }
 
     private fun stateDir() = File(NativeLibrary.GetUserDirectory(), "StateSaves")
 
