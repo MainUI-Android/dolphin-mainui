@@ -235,7 +235,7 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
             title = NativeLibrary.GetCurrentTitleDescription()
 
         // MainUI State API (MainUI-Android fork): this game takes MainUI's save / load commands.
-        io.github.mainui.stateapi.MainUIStateApi.attach(io.github.mainui.stateapi.DolphinStates)
+        io.github.mainui.stateapi.DolphinStates.attach()
 
         if (skylanderSlots.isEmpty()) {
             for (i in 0..7) {

@@ -12,6 +12,15 @@ import java.io.File
  * complete (Dolphin's slot lookup waits for saves in progress).
  */
 object DolphinStates : MainUIStateApi.Emulator {
+    /** When the game running now was started (its emulation screen created), ms since 1970. */
+    @Volatile private var startedAt = Long.MAX_VALUE
+
+    /** A game's emulation screen is up: MainUI's commands go to it from now on. */
+    fun attach() {
+        startedAt = System.currentTimeMillis()
+        MainUIStateApi.attach(this)
+    }
+
     override fun isRunning(): Boolean = NativeLibrary.IsRunning() && NativeLibrary.IsGameMetadataValid()
 
     override fun isReady(): Boolean = NativeLibrary.IsRunningAndUnpaused()
@@ -69,8 +78,29 @@ object DolphinStates : MainUIStateApi.Emulator {
     }
 
     override fun load(slot: Int) {
-        if (slot == MainUIStateApi.RESUME_SLOT) NativeLibrary.LoadStateAs(resumeFile().path)
-        else NativeLibrary.LoadState(slot)
+        if (slot == MainUIStateApi.RESUME_SLOT) {
+            val f = resumeFile()
+            // The game saved after this state was made, in a session that ended without MainUI's
+            // save: the state holds what the game knew of its saves back then (a GameCube state the
+            // memory card itself), and loading it would put that over the newer saves.
+            if (f.isFile && lastSaveBeforeThisRun() > f.lastModified()) throw IllegalStateException("the game has newer saves of its own")
+            NativeLibrary.LoadStateAs(f.path)
+        } else NativeLibrary.LoadState(slot)
+    }
+
+    /**
+     * When this game last wrote its own saves (Wii save data on the NAND, GameCube memory card
+     * files) before this run of it, ms since 1970; writes while it boots now don't count.
+     */
+    private fun lastSaveBeforeThisRun(): Long {
+        val code = NativeLibrary.GetCurrentGameID().take(4)
+        if (code.length < 4) return 0L
+        val user = File(NativeLibrary.GetUserDirectory())
+        val hex = code.toByteArray(Charsets.US_ASCII).joinToString("") { "%02x".format(it) }
+        val wii = listOf("00010000", "00010001").asSequence()
+            .flatMap { File(user, "Wii/title/$it/$hex/data").walkTopDown() }
+        val gc = File(user, "GC").walkTopDown().filter { it.name.endsWith(".gci") && it.name.contains("-$code-") }
+        return (wii + gc).filter { it.isFile }.map { it.lastModified() }.filter { it < startedAt }.maxOrNull() ?: 0L
     }
 
     override fun slotTime(slot: Int): Long =
